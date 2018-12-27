@@ -6,6 +6,7 @@
 #include <unistd.h>
 #include <stdbool.h>
 //alan yousefzadeh lhlh;lh;lhilh kjbkjglklkh
+// fl;jsaoifhqw;ofjf;g;fljsa'fpiqwdh;wfkwlhjfo;qlj
 #define PORT 80
 int portNumber (char *url)
 {
