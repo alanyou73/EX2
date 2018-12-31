@@ -4,10 +4,13 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <unistd.h>
+#include <ctype.h>
 
 #define PORT 80
 #define GET 0
 #define POST 1
+
+
 
 enum argType
 {TYPE_ERROR=-1, TYPE_P, TYPE_R, TYPE_URL};
@@ -16,13 +19,23 @@ typedef struct httpReq{
     char *url;
     int type; // GET / SET
     char* parameters;
+    char* postContent;
+    char* path;
+
 }httpReq;
 
-char* parseTypeR(char* str);
+char* parseTypeR(char** argv, int currIndex, int argsAmount);
 int type (char* arr);
 int portNumber(char *url);
 void error();
 httpReq* init();
+int isURL(char* arr);
+char* getUrlAfterSlash(char* srt);
+void ifR(char**argv,char*str,int amount , httpReq *req,int index);
+void ifURL(char**argv,char*str,int index);
+int validPram(char* param);
+int numOfEqual (char**argv, int index);
+void parseTypeUrl(httpReq *req,char*url);
 
 int main (int argc , char *argv[])
 {
@@ -31,9 +44,9 @@ int main (int argc , char *argv[])
     char * postText = NULL;
     int start = -1;
     int end =-1;
+    int rArgsAmount = 0;
     char *url =NULL;
     int curr;
-
     httpReq *req = init();
 
     if(argc==1)
@@ -43,19 +56,47 @@ int main (int argc , char *argv[])
 
     for (int i = 1; i <argc ; ++i)
     {
-        switch(type(argv[i]))
-        {
+
+        switch(type(argv[i])) {
             case TYPE_P: {
-                printf("type p!!!");
-                break;
+                if(req -> postContent) error();
+
+                req -> postContent = (char*)malloc(sizeof(char)*strlen(argv[i+1])+1);
+                req ->type = POST;
+
+                i++;
+                //printf("type p!!! %c", req->postContent[strlen(argv[i])+1]);
+
+                strcpy(req->postContent,argv[i]);
+
+                break;//exit(1);
             }
+
+
             case TYPE_R: {
-                req->parameters = parseTypeR(strchr(argv[i], ' '));
-                puts(req->parameters);
+                if(req->parameters) error();
+                //req ->type = GET;
+                rArgsAmount = atoi( (argv[++i]));
+                if (rArgsAmount == 0) {
+                    error();
+                }
+
+                req->parameters = parseTypeR( argv, i+1, rArgsAmount);
+                i+=rArgsAmount;
+
                 break;
             }
             case TYPE_URL: {
-                printf("type url!!!");
+                if(req->url) error();
+               //tolower(argv[i]);
+                //strstr(argv[i], "www")? strchr(argv[i],'.'):
+
+
+                parseTypeUrl(req, argv[i]);
+               // puts(req->url);
+
+                //puts(req->path);
+
                 break;
             }
             default:
@@ -64,49 +105,22 @@ int main (int argc , char *argv[])
                 break;
         }
     }
+
+    char* str[2000] = {0};
+   /* sprintf(str, "Request:\n%s %s?%s HTTP/1.0\nHost: %s", req->type == GET ? "GET":"POST",req->parameters == NULL ? "": req->path, req->parameters, req->url);
+    puts(str);*/
+    puts(req->url);//
+    if(req->parameters == NULL)
+    {
+        sprintf(str, "Request:\n%s %s HTTP/1.0\nHost:%s\nContent-length:%d\n%s", req->type == POST? "POST":"GET",req->path,req->url,strlen(req->postContent),req->postContent);
+    }else
+        sprintf(str, "Request:\n%s %s?%s HTTP/1.0\nHost:%s", req->type == GET ? "GET":"POST",req->parameters == NULL?"": req->path, req->parameters, req->url);
+
+
+    puts(str);
+
 /*
-    int i;
-    for (i = 0; i < argc ; i++) {
-        if (strcmp(argv[i], "-p") == 0) {
-            post = 1;
-
-            if (strcmp(argv[i + 1], "text") != 0) {
-                error();
-            }
-            if (strcmp(argv[i + 1], url) != 0) {
-
-                if (strcmp(argv[i + 2], "-r") != 0) {
-                    error();
-                } else {
-                    curr++;
-
-                    if (argv[curr] <= (char *) '0' && argv[curr] >= (char *) '9') {
-                        error();
-                    }
-                    while (flag) {
-                        //if()
-                    }
-                }
-            }
-            if ((i + 1) < argc) {
-                postText = argv[i - 1];
-                i++;
-            }
-        } else if (strcmp(argv[i], "-r") == 0) {
-            for (int j = i + 1; j < argc; j++) {
-                if (strstr(argv[j], "*") != NULL) {
-                    if (start == -1) {
-                        start = j;
-                    }
-                    end = j;
-                    i = j;
-                }
-            }
-        } else {
-            url = argv[i];
-        }
-    }
-    int sock =0;
+ int sock =0;
     struct sockaddr_in server_addr;
     int new_socket,valread;
     int addrlen= sizeof(server_addr);
@@ -160,8 +174,106 @@ int main (int argc , char *argv[])
         perror("ERROR reading from socket");
     printf("%s\n",buffer);
     close(sock);
-*/
+ */
+
     return 0;
+}
+
+void parseTypeUrl(httpReq *req,char *url)
+{
+    char * afterUrl;
+    char * path;
+    //ifURL(argv,afterUrl,i);
+    //puts("Request:");
+    tolower(url);
+
+    afterUrl = strstr(url, "www") ? strchr(url, '.')+1 : getUrlAfterSlash(url);
+
+    //afterUrl = strchr(afterUrl,'/');
+    path = strchr(afterUrl,'/');
+    req -> path = (char*) malloc(sizeof(char) * (strlen(path) + 1));
+    strcpy(req->path, path);
+
+    afterUrl[(int) (path-afterUrl)] = 0;
+
+    req -> url = (char*) malloc (sizeof(char) * (strlen(path) + 4)); // 1 for null and 3 for www
+
+    //puts(req->url);
+    strcpy(req->url, "www.");
+
+    //puts(req->url);
+    strcat(req->url, afterUrl);
+
+    //puts(req->url);
+}
+// Returns the new char*.
+char* parseTypeR(char** argv, int currIndex, int argsAmount)
+{
+    /*printf("\?printfnlen is: %d\n", strlen(str));
+    char* temp = (char*) malloc(sizeof(char) * (strlen(str)));
+    int i;
+
+    temp[0] = '?';
+    for(i = 1; str[i]; i++)
+    {
+        temp[i] = (str[i] == ' ' ? '&' : str[i]);
+    }
+
+    return temp;*/
+    int amt=argsAmount;
+    int flag = 0;
+    int check = 0;
+    char* temp = (char*) malloc (sizeof(char)*strlen(argv[currIndex]));
+    for (;  argsAmount>0 ; argsAmount--, currIndex++)
+    {
+       // printf("argv[%d] = %s", currIndex, argv[currIndex]);
+        if(argv[currIndex] == NULL) error();
+
+        if(flag != 0)
+        {
+            temp = (char*) realloc (temp,sizeof(char)*(strlen(argv[currIndex])+strlen(temp)+2)); // +2 is for '\0' and '&'
+            strcat(temp, "&");
+        }
+
+        strcat(temp,argv[currIndex]);
+
+        if(strstr(argv[currIndex],"=")==NULL)
+        {
+            error();
+        }
+
+        flag=1;
+
+    }
+    /*isU=type((char *) argv);
+    if(isU==TYPE_URL)
+    {
+
+    }*/
+    //puts(temp);
+    //getUrlAfterSlash();
+
+
+    return temp;
+}
+
+
+char* getUrlAfterSlash(char* srt)
+{
+    char*  afterSlash = (char*)malloc(strlen( srt));
+    afterSlash = strcpy(afterSlash,(srt + 7));
+    // printf("GET %s \n",afterSlash);
+    return afterSlash;
+}
+
+
+int isURL(char * arr)
+{
+
+    char temp[8]="";
+    //printf("Host:"); puts(arr);
+    strncat(temp,arr,7);
+    return strcmp(temp, "http://");
 }
 
 int portNumber (char *url)
@@ -203,10 +315,13 @@ httpReq* init()
     newReq -> type = GET;
     newReq -> url = NULL;
     newReq -> parameters = NULL;
+    newReq->postContent=NULL;
+    newReq->path=NULL;
     return newReq;
 }
 
 void error() {
+
     perror("Usage: client [-p] [-r < pr1=value1 pr2=value2 …>]\\n url");
     exit(-1);
 }
@@ -214,39 +329,35 @@ void error() {
 // returns the type of the argument
 int type (char* arr)
 {
-    char temp[6]="";
-    puts(arr);
-    strncat(temp,arr, arr[0] == '-' ? 3 : 5);
-    puts("\ntemp is:");
-    puts(temp);
-    if(strcmp(temp,"-p ")==0)
+
+
+    if(strcmp(arr,"-p")==0)
     {
         return TYPE_P;
     }
-    else if (strcmp(temp,"-r ")==0)
+    else if (strcmp(arr,"-r")==0)
     {
         return TYPE_R;
-
-    }else if (strcmp(temp,"http:")==0)
+    }
+    else if(isURL(arr)==0)
     {
         return TYPE_URL;
     }
-    else
-
-       return TYPE_ERROR;
-}
-
-char* parseTypeR(char* str)
-{
-    printf("\nlen is: %d\n", strlen(str));
-    char* temp = (char*) malloc(sizeof(char) * (strlen(str)));
-    int i;
-
-    temp[0] = '?';
-    for(i = 1; str[i]; i++)
-    {
-        temp[i] = (str[i] == ' ' ? '&' : str[i]);
+    else {
+        return TYPE_ERROR;
     }
-
-    return temp;
 }
+
+int numOfEqual (char** str , int index)
+{
+    int res = 0;
+
+   while(strchr(str[index],'=')!=NULL)
+   {
+       res++;
+       index++;
+   }
+
+    return res;
+}
+
