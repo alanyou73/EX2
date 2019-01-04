@@ -9,7 +9,6 @@
 #define PORT 80
 #define GET 0
 #define POST 1
-#define MAXDATASIZE 100 /* max number of bytes we can get at once */
 
 enum argType
 {TYPE_ERROR=-1, TYPE_P, TYPE_R, TYPE_URL};
@@ -29,8 +28,8 @@ int portNumber(char *url);
 void error(httpReq* req);
 httpReq* init();
 int isURL(char* arr);
-char* getUrlAfterSlash(char* srt);
-int numOfEqual (char**argv, int index);
+char* getUrlAfterSlash(char* str);
+//int numOfEqual (char**argv, int index);
 void parseTypeUrl(httpReq *req,char*url);
 void isParameterValid(char* param);
 int strLength(char* string);
@@ -56,6 +55,7 @@ int main (int argc , char *argv[])
             case TYPE_P: {
                 if(req -> postContent) error(req);
 
+
                 req -> postContent = (char*)malloc(sizeof(char)*strlen(argv[i+1])+1);
                 req ->type = POST;
 
@@ -63,13 +63,23 @@ int main (int argc , char *argv[])
 
                 strcpy(req->postContent,argv[i]);
 
+
+                if(req->postContent==NULL)
+                {
+                    error(req);
+                }
+                else if(strcmp(argv[i],"")==0||strcmp(argv[i]," ")==0)
+                {
+                    error(req);
+                }
+
                 break;
             }
 
 
             case TYPE_R: {
                 if(req->parameters) error(req);
-                req ->type = GET;
+                //req ->type = GET;
                 rArgsAmount = atoi((argv[++i]));
                 if (rArgsAmount == 0) {
                     error(req);
@@ -95,11 +105,12 @@ int main (int argc , char *argv[])
     }
 
 
-    int len = strlen(req->url) + strLength(req->parameters) + strLength(req->postContent) + strLength(req->path);
-
+    int port = portNumber(req->url);
+    int len = (int) (strlen(req->url) + strLength(req->parameters) + strLength(req->postContent) + strLength(req->path));
     char *str = (char*) malloc(sizeof(char) * (len + 65));
     //4(POST/GET), " HTTP/1.Host:"
     bzero(str,strlen(str));
+
    /* sprintf(str, "Request:\n%s %s?%s HTTP/1.0\nHost: %s", req->type == GET ? "GET":"POST",req->parameters == NULL ? "": req->path, req->parameters, req->url);
     puts(str);*/
    // puts(req->url);
@@ -113,7 +124,8 @@ int main (int argc , char *argv[])
     }else if(req->parameters == NULL)
     {
         printf("Request:\r\n");
-        sprintf(str,"%s %s HTTP/1.0\r\nHost:%s\r\nContent-length:%d\r\n\r\n%s", req->type == POST? "POST":"GET",req->path ? req->path : "/",req->url,strlen(req->postContent),req->postContent); // 23 (Contet...)
+        sprintf(str, "%s %s HTTP/1.0\r\nHost:%s\r\nContent-length:%d\r\n\r\n%s", req->type == POST? "POST":"GET",req->path ? req->path : "/", req->url,
+                (int) strlen(req->postContent), req->postContent); // 23 (Contet...)
     }else if(req->type==GET) {
         printf("Request:\r\n");
         sprintf(str, "%s %s?%s HTTP/1.0\r\nHost: %s\r\n\r\n", // 2 "/...?"
@@ -123,18 +135,17 @@ int main (int argc , char *argv[])
     else {
         printf("Request:\r\n");
         sprintf(str, "%s %s?%s HTTP/1.0\r\nHost: %s\r\nContent-length:%d\r\n\r\n%s\r\n\r\n",
-                req->type == POST ? "POST" : "GET", req->path ? req->path : "/", req->parameters, req->url, strlen(req->postContent),
+                req->type == POST ? "POST" : "GET", req->path ? req->path : "/", req->parameters, req->url,
+                (int) strlen(req->postContent),
                 req->postContent);
     }
 
     puts(str);
 
-
-
     //Initializing socket
 
-    int sockfd, port = portNumber(req->url);
-    struct sockaddr_in serv_addr ;
+    int sockfd=0;
+    struct sockaddr_in serv_addr;
     struct hostent *server ;
 
 
@@ -149,14 +160,14 @@ int main (int argc , char *argv[])
     sockfd = socket(PF_INET, SOCK_STREAM, 0);
     if (sockfd < 0)
     {
-        error("ERROR opening socket");
+        perror("ERROR opening socket");
         deleteHttpReq(req);
         free(str);
 
         exit(1);
     }
 
-    printf("%s\n",req->url);
+    //printf("%d\n",port);
     server = gethostbyname(req->url);
     if (server == NULL) {
         fprintf(stderr,"ERROR, no such host\n");
@@ -168,20 +179,19 @@ int main (int argc , char *argv[])
     }
 
     serv_addr.sin_family = AF_INET;
-    bcopy(server->h_addr_list[0], (char *)  &serv_addr.sin_addr.s_addr, server->h_length);
-    serv_addr.sin_port = htons(port);
+    bcopy(server->h_addr_list[0], (char *)  &serv_addr.sin_addr.s_addr, (size_t) server->h_length);
+    serv_addr.sin_port = htons((uint16_t) port);
 
     if (connect(sockfd,(const struct sockaddr*)&serv_addr,sizeof(serv_addr)) < 0)
     {
-        error("ERROR connecting");
+        perror("ERROR connecting");
         deleteHttpReq(req);
         close(sockfd);
         free(str);
-
         exit(1);
     }
     //retrieve data form server
-    int size = 0;
+    //int size = 0;
 
     if(write(sockfd,str,strlen(str))<0)
     {
@@ -214,7 +224,7 @@ int main (int argc , char *argv[])
     free(str);
     //free(req);
     deleteHttpReq(req);
-    str=NULL;
+    //str=NULL;
     return 0;
 }
 
@@ -235,9 +245,8 @@ void parseTypeUrl(httpReq *req,char *url)
     char * afterUrl = NULL;
     char * path = NULL;
     int afterUrlMalloc = 0;
-    //ifURL(argv,afterUrl,i);
-    //puts("Request:");
-    tolower(url);
+
+    tolower((int)url);
 
     if(strstr(url, "www"))
     {
@@ -247,9 +256,7 @@ void parseTypeUrl(httpReq *req,char *url)
         afterUrl = getUrlAfterSlash(url);
         afterUrlMalloc = 1;
     }
-   //strstr(url, "www") ?  :
 
-    //afterUrl = strchr(afterUrl,'/');
     path = strchr(afterUrl,'/');
 
     if(path != NULL) {
@@ -260,34 +267,21 @@ void parseTypeUrl(httpReq *req,char *url)
     }
     req->url = (char*) malloc(sizeof(char) * ((strlen(afterUrl)-strLength(path)) + 5)); // 1 for null and 3 for www.
 
-    //puts(req->url);
     strcpy(req->url, "www.");
 
-    //puts(req->url);
     strcat(req->url, afterUrl);
 
     if(afterUrlMalloc)
     {
         free(afterUrl);
-        afterUrl = NULL;
+        //afterUrl = NULL;
     }
-    //printf("%d", portNumber(req->url));
-    //puts(req->url);
+
 }
 // Returns the new char*.
 char* parseTypeR(char** argv, int currIndex, int argsAmount)
 {
-    /*printf("\?printfnlen is: %d\n", strlen(str));
-    char* temp = (char*) malloc(sizeof(char) * (strlen(str)));
-    int i;
 
-    temp[0] = '?';
-    for(i = 1; str[i]; i++)
-    {
-        temp[i] = (str[i] == ' ' ? '&' : str[i]);
-    }
-
-    return temp;*/
     int flag = 0;
     char* temp = (char*) malloc (sizeof(char)*strlen(argv[currIndex]));
     for (;  argsAmount>0 ; argsAmount--, currIndex++)
@@ -312,13 +306,6 @@ char* parseTypeR(char** argv, int currIndex, int argsAmount)
         flag=1;
 
     }
-    /*isU=type((char *) argv);
-    if(isU==TYPE_URL)
-    {
-
-    }*/
-    //puts(temp);
-    //getUrlAfterSlash();
 
 
     return temp;
@@ -327,10 +314,10 @@ char* parseTypeR(char** argv, int currIndex, int argsAmount)
 
 char* getUrlAfterSlash(char* str)
 {
-    char*  afterSlash = (char*)malloc(strlen(str)-6); //-strlen("http://")=7 +1 -> -6
+    char*  afterSlash = (char*)malloc(strlen(str)-6);
     bzero(afterSlash,strlen(str)-6);
     afterSlash = strcpy(afterSlash,(str + 7));
-    // printf("GET %s \n",afterSlash);
+
     return afterSlash;
 }
 
@@ -339,50 +326,35 @@ int isURL(char * arr)
 {
 
     char temp[8]="";
-    //printf("Host:"); puts(arr);
     strncat(temp,arr,7);
     return strcmp(temp, "http://");
 }
 
 int portNumber (char *url)
 {
+
     char *arr = strchr(url, ':');
-//    printf("the arr address: %p", arr);
     if(arr != NULL)
     {
-        *arr= 0;
+        *arr = 0;
         arr++;
-    }
-   /* int len = (int) strlen(url);
-    for (int i = 0; i <len ; ++i) {
-        if(url[i]==':')
-        {
-            printf("the url address: %p", &url[i]);
-            for(int j = i+1 ; j<len ; ++j)
-            {
-                if(url[j]>='0'&&url[j]<='9')
-                {
-                    int len2= (int) strlen(arr);
-                    arr[len2]=url[j];
-                    arr[len2+1]='\0';
-                }
-                else
-                {
-                    break;
-                }
-            }if(strlen(arr)>0)
-            {
-                break;
+
+
+        for (int i = 0; i < strlen(arr); i++) {
+            if (isdigit(arr[i]) == NULL) {
+                error(req);
             }
         }
 
-
-    }if(strlen(arr)>0)
-    {
-        return atoi(arr);
     }
-    return PORT;*/
-    return arr == NULL ? PORT : atoi(arr);
+    else
+    {
+
+    }
+
+
+        return arr == NULL ? PORT : atoi(arr);
+
 }
 
 httpReq* init()
@@ -402,7 +374,6 @@ void error(httpReq *req) {
     exit(-1);
 }
 
-// returns the type of the argument
 int type (char* arr)
 {
     if(strcmp(arr,"-p")==0)
@@ -422,7 +393,7 @@ int type (char* arr)
     }
 }
 
-int numOfEqual (char** str , int index)
+/*int numOfEqual (char** str , int index)
 {
     int res = 0;
 
@@ -433,11 +404,11 @@ int numOfEqual (char** str , int index)
     }
 
     return res;
-}
+}*/
 
 int strLength (char* string)
 {
-    return string ? strlen(string) : 0;
+    return (int) (string ? strlen(string) : 0);
 }
 
 void deleteHttpReq(httpReq* req)
@@ -464,5 +435,5 @@ void deleteHttpReq(httpReq* req)
     }
 
     free(req);
-    req=NULL;
+
 }
