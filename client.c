@@ -34,7 +34,7 @@ void parseTypeUrl(httpReq *req,char*url);
 void isParameterValid(char* param);
 int strLength(char* string);
 void deleteHttpReq(httpReq* req);
-
+void specialCharacter(char* str);
 httpReq *req;
 
 int main (int argc , char *argv[])
@@ -53,16 +53,21 @@ int main (int argc , char *argv[])
 
         switch(type(argv[i])) {
             case TYPE_P: {
-                if(req -> postContent) error(req);
+                if(argv[i+1]==NULL)
+                {
+                    error(req);
+                }
 
+                if(req -> postContent) error(req);
 
                 req -> postContent = (char*)malloc(sizeof(char)*strlen(argv[i+1])+1);
                 req ->type = POST;
 
                 i++;
 
-                strcpy(req->postContent,argv[i]);
 
+                strcpy(req->postContent,argv[i]);
+                specialCharacter(req->postContent);
 
                 if(req->postContent==NULL)
                 {
@@ -98,7 +103,6 @@ int main (int argc , char *argv[])
                 break;
             }
             default:
-                printf("type error!!!");
                 error(req);
                 break;
         }
@@ -126,7 +130,7 @@ int main (int argc , char *argv[])
         printf("Request:\r\n");
         sprintf(str, "%s %s HTTP/1.0\r\nHost:%s\r\nContent-length:%d\r\n\r\n%s", req->type == POST? "POST":"GET",req->path ? req->path : "/", req->url,
                 (int) strlen(req->postContent), req->postContent); // 23 (Contet...)
-    }else if(req->type==GET) {
+    }else if(req->postContent==NULL) {
         printf("Request:\r\n");
         sprintf(str, "%s %s?%s HTTP/1.0\r\nHost: %s\r\n\r\n", // 2 "/...?"
                 req->type == POST ? "POST" : "GET", req->path ? req->path : "/", req->parameters,req->url
@@ -134,7 +138,7 @@ int main (int argc , char *argv[])
     }
     else {
         printf("Request:\r\n");
-        sprintf(str, "%s %s?%s HTTP/1.0\r\nHost: %s\r\nContent-length:%d\r\n\r\n%s\r\n\r\n",
+        sprintf(str, "%s %s?%s HTTP/1.0\r\nHost: %s\r\nContent-length:%d\r\n\r\n%s",
                 req->type == POST ? "POST" : "GET", req->path ? req->path : "/", req->parameters, req->url,
                 (int) strlen(req->postContent),
                 req->postContent);
@@ -370,7 +374,7 @@ httpReq* init()
 
 void error(httpReq *req) {
     deleteHttpReq(req);
-    perror("Usage: client [-p] [-r < pr1=value1 pr2=value2 …>]\\n url");
+    perror("Usage: client [-p <text>] [-r n < pr1=value1 pr2=value2 ...>]\\n <URL>");
     exit(-1);
 }
 
@@ -436,4 +440,19 @@ void deleteHttpReq(httpReq* req)
 
     free(req);
 
+}
+void specialCharacter(char* str) {
+    char ch;
+
+    for(int i=0; i<strlen(str);i++) {
+        ch=str[i];
+
+        if (('a' <= ch && ch <= 'z') || ('A' <= ch && ch <= 'Z') || ('0' <= ch && ch <= '9')) {
+
+        }
+        else
+        {
+           error(req);
+        }
+    }
 }
